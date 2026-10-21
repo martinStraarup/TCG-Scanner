@@ -159,6 +159,18 @@ dialog#camDialog::backdrop { background: rgba(10, 12, 16, .55); }
 .dlg ol { padding-left: 1.3em; display: grid; gap: 6px; color: var(--ink); }
 .dlg-icon { width: 48px; height: 48px; border-radius: 12px; background: var(--bg); display: grid; place-items: center; color: var(--accent); }
 .dlg-actions { display: grid; gap: 8px; margin-top: 6px; }
+dialog#cardDlg { border: 1px solid var(--line); border-radius: 14px; padding: 0; width: min(720px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); }
+dialog#cardDlg::backdrop { background: rgba(10, 12, 16, .55); }
+.cdlg { padding: 20px; display: grid; gap: 16px; }
+.cd-grid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; align-items: start; }
+.cd-img img { width: 100%; border-radius: 10px; display: block; }
+.cd-info { display: grid; gap: 10px; min-width: 0; }
+.cd-info h2 { font-size: 1.35rem; }
+.cd-actions .cd-sp { flex: 1; }
+@media (max-width: 560px) { .cd-grid { grid-template-columns: 1fr; } .cd-img { max-width: 220px; margin: 0 auto; } }
+.cardlink { border: none; background: none; padding: 0; font: inherit; color: var(--ink); text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.cardlink:hover { text-decoration-color: var(--accent); }
+td.foilc { text-align: center; }
 .dlg-actions button { width: 100%; padding: 11px 14px; }
 .drop { border: 2px dashed var(--line); border-radius: 10px; padding: 28px 16px; text-align: center; display: grid; gap: 12px; justify-items: center; }
 .drop.over { border-color: var(--accent); background: var(--bg); }
@@ -341,7 +353,7 @@ dialog#camDialog::backdrop { background: rgba(10, 12, 16, .55); }
     </div>
     <div class="tablewrap">
       <table>
-        <thead><tr><th>Kort</th><th>Kode</th><th class="num">Antal</th><th class="num">Pris</th><th class="num">I alt</th><th>Kommentar</th><th>Link</th><th></th></tr></thead>
+        <thead><tr><th>Kort</th><th>Kode</th><th>Foil</th><th class="num">Antal</th><th class="num">Pris</th><th class="num">I alt</th><th>Kommentar</th><th>Link</th><th></th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>
@@ -462,6 +474,43 @@ dialog#camDialog::backdrop { background: rgba(10, 12, 16, .55); }
   <p class="foot">Prisen er Cardmarkets trendpris for udgaven (for One Piece og Lorcana den amerikanske markedspris). Listen gemmes i din browser. Appen virker også, når filen åbnes direkte, men kræver internet til priser og tekstgenkendelse.</p>
 </main>
 
+<dialog id="cardDlg" aria-labelledby="cdName">
+  <form method="dialog" class="cdlg">
+    <div class="cd-grid">
+      <div class="cd-img"><img id="cdImg" alt=""><div class="noimg" id="cdNoImg" hidden></div></div>
+      <div class="cd-info">
+        <h2 id="cdName"></h2>
+        <div class="found" id="cdMeta"></div>
+        <div id="cdPrintWrap">
+          <label class="label" for="cdPrint">Udgave</label>
+          <select id="cdPrint" style="width:100%"></select>
+          <span class="found" id="cdLoading"></span>
+        </div>
+        <div class="row">
+          <label class="row" style="gap:6px" id="cdFoilWrap"><input type="checkbox" id="cdFoil"> Foil</label>
+          <label class="row" style="gap:6px">Antal <input type="number" id="cdQty" min="1" style="width:70px"></label>
+        </div>
+        <div class="price" id="cdPrice"></div>
+        <label class="row" style="gap:6px" id="cdManualWrap" hidden>Pris <input type="number" id="cdManual" min="0" step="0.01" style="width:110px"> <span id="cdManualCur"></span></label>
+        <div>
+          <label class="label" for="cdNote">Kommentar</label>
+          <input type="text" id="cdNote" style="width:100%">
+        </div>
+        <div class="row">
+          <a id="cdCm" target="_blank" rel="noopener">Se på Cardmarket ↗</a>
+          <a id="cdSf" target="_blank" rel="noopener" hidden>Se på Scryfall ↗</a>
+        </div>
+      </div>
+    </div>
+    <div class="row cd-actions">
+      <button value="del" id="cdDel">Fjern fra regnearket</button>
+      <span class="cd-sp"></span>
+      <button value="cancel">Annuller</button>
+      <button value="save" class="primary" id="cdSave">Gem</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="camDialog" aria-labelledby="camDlgTitle">
   <form method="dialog" class="dlg">
     <div class="dlg-icon" aria-hidden="true">
@@ -520,7 +569,17 @@ const cmSlug = s => String(s || '').replace(/Æ/g, 'AE').replace(/æ/g, 'ae').no
 const cmCard = (slug, name) => `https://www.cardmarket.com/en/${slug}/Cards/${cmSlug(name)}`;
 const today = () => new Date().toISOString().slice(0, 10);
 
-async function api(url, opts) {
+// Lookups are remembered for 10 minutes (and identical ones running at once share one request),
+// so a card scanned twice, or a code and a name pointing at the same card, cost one lookup
+const apiCache = new Map();
+function api(url, opts) {
+  const get = !opts || !opts.method || opts.method === 'GET';
+  if (get) { const c = apiCache.get(url); if (c && Date.now() - c.t < 6e5) return c.p; }
+  const p = apiFetch(url, opts);
+  if (get) { apiCache.set(url, { t: Date.now(), p }); p.catch(() => apiCache.delete(url)); }
+  return p;
+}
+async function apiFetch(url, opts) {
   let r;
   try { r = await fetch(url, { headers: { Accept: 'application/json' }, ...opts }); }
   catch { throw new Error('Kunne ikke kontakte ' + new URL(url).host + '. Tjek internetforbindelsen.'); }
@@ -669,8 +728,11 @@ const GAME = {
     }
     const c = await api(`${SCRY}/cards/${code.set.toLowerCase()}/${enc(code.num)}`);
     if (!nameOK([c.name, ...(c.card_faces || []).map(f => f.name)], names)) throw new Error('Koden passer ikke med navnet');
-    const prints = await mtgPrints(c.prints_search_uri);
-    return { pick: prints.find(p => p.id === c.id) || mtgToP(c), prints: prints.length ? prints : [mtgToP(c)], key: c.prints_search_uri };
+    // Show this printing at once; the other printings arrive afterwards
+    const pick = mtgToP(c);
+    const more = mtgPrints(c.prints_search_uri).then(ps => ps.length ? ps : [pick]);
+    more.catch(() => {});
+    return { pick, prints: [pick], key: c.prints_search_uri, more };
   },
   async byName(name, code) {
     let c;
@@ -731,12 +793,23 @@ async function pkSetCard(setId, n) {
   return null;
 }
 // Every printing of a name (capped at 30 to keep requests reasonable), with prices
-async function pkPrints(name, include) {
+// Card ids with this exact name, newest first (max 30)
+async function pkIds(name) {
   const list = (await api(`${TCGDEX}/cards?name=eq:${enc(name)}`)) || [];
-  const ids = list.slice(-30).map(b => b.id).reverse(); // newest first
+  return list.slice(-30).map(b => b.id).reverse();
+}
+async function pkPrints(name, include) {
+  const ids = await pkIds(name);
   if (include && !ids.includes(include.id)) ids.unshift(include.id);
-  const full = await pool(ids, 5, id => include && id === include.id ? include : api(`${TCGDEX}/cards/${enc(id)}`).catch(() => null));
+  const full = await pool(ids, 6, id => include && id === include.id ? include : api(`${TCGDEX}/cards/${enc(id)}`).catch(() => null));
   return full.filter(Boolean).map(pkToP);
+}
+// Show one card at once and fetch the rest of the printings afterwards
+function pkResult(card, name) {
+  const pick = pkToP(card);
+  const more = pkPrints(name, card).then(ps => ps.length ? ps : [pick]);
+  more.catch(() => {});
+  return { pick, prints: [pick], key: name, more };
 }
 
 const GAME = {
@@ -775,23 +848,22 @@ const GAME = {
       }
     }
     if (!best || score < 0.6) throw new Error('Fandt ikke kortet ud fra koden');
-    const prints = await pkPrints(best.name, best);
-    return { pick: prints.find(p => p.id === best.id) || pkToP(best), prints, key: best.name };
+    return pkResult(best, best.name);
   },
   async byName(name) {
-    let prints = [];
-    try { prints = await pkPrints(name); } catch {}
-    if (!prints.length) {
+    let ids = [];
+    try { ids = await pkIds(name); } catch {}
+    if (!ids.length) {
       // Not an exact name: search loosely and pick the closest
       let list = [];
       try { list = await api(`${TCGDEX}/cards?name=${enc(name)}`) || []; } catch {}
       const names = [...new Set(list.map(c => c.name))];
       const [best, sc] = bestBy(names, name);
       if (!best || sc < 0.4) throw Object.assign(new Error(`Fandt ikke "${name}".`), { suggestions: names.slice(0, 5) });
-      name = best; prints = await pkPrints(best);
+      name = best; ids = await pkIds(best);
     }
-    if (!prints.length) throw new Error(`Fandt ingen udgaver af "${name}".`);
-    return { pick: prints[0], prints, key: name };
+    if (!ids.length) throw new Error(`Fandt ingen udgaver af "${name}".`);
+    return pkResult(await api(`${TCGDEX}/cards/${enc(ids[0])}`), name);
   },
   loadPrints: key => pkPrints(key)
 };
@@ -1541,13 +1613,17 @@ function regionCanvas(snap, r, v, mode, targetPx) {
   return c;
 }
 
-let worker = null;
-async function getWorker() {
-  if (worker) return worker;
-  setStatus('Indlæser tekstgenkendelse (første gang tager et øjeblik)…');
-  worker = await Tesseract.createWorker('eng', 1, location.protocol === 'file:' ? { cacheMethod: 'none' } : {});
-  return worker;
+// Two OCR engines, so the name and the code are read at the same time
+let workersP = null;
+function getWorkers(quiet) {
+  if (!workersP) {
+    if (!quiet) setStatus('Indlæser tekstgenkendelse (første gang tager et øjeblik)…');
+    const opts = location.protocol === 'file:' ? { cacheMethod: 'none' } : {};
+    workersP = Promise.all([0, 1].map(() => Tesseract.createWorker('eng', 1, opts))).catch(e => { workersP = null; throw e; });
+  }
+  return workersP;
 }
+async function getWorker() { return (await getWorkers())[0]; }
 const cleanText = t => t.replace(/[|_~^`"“”«»<>{}\[\]\\]/g, ' ').replace(/\s+/g, ' ').trim();
 
 const NAME_TRIES = [
@@ -1583,10 +1659,11 @@ async function readName(w, snap, onStep, bail) {
   return { texts, ranked };
 }
 
-async function readCode(w, snap, onStep) {
+async function readCode(w, snap, onStep, flag = {}) {
   const r = GAME.regions.code;
   const counts = new Map();
   for (const tr of CODE_TRIES) {
+    if (flag.stop) break;
     await w.setParameters({ tessedit_pageseg_mode: String(r.psm || 6), tessedit_char_whitelist: GAME.codeChars });
     const { data } = await w.recognize(regionCanvas(snap, r, tr.v, tr.mode, r.target || 56));
     const c = await GAME.parseCode(data.text.toUpperCase());
@@ -1595,6 +1672,7 @@ async function readCode(w, snap, onStep) {
       const k = JSON.stringify(c);
       counts.set(k, (counts.get(k) || 0) + 1);
       if (counts.get(k) >= 2) break; // read the same twice: good enough
+      if (flag.nameClear && (!GAME.isComplete || GAME.isComplete(c))) break; // a full code and a clear name: enough
     }
   }
   return [...counts].sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ ...JSON.parse(k), seen: n }));
@@ -1605,8 +1683,17 @@ async function readCode(w, snap, onStep) {
    resolveCard: decide which card it is from that read.               (no UI)
    identify: show the outcome in the scanner UI.
    The batch app uses readSnaps + resolveCard directly. */
+const nameIsClear = ranked => !!ranked[0] && ranked[0].score >= 0.9 && (!ranked[1] || ranked[0].score - ranked[1].score >= 0.05);
+// The same code read in several passes counts once, with its reads added up
+function mergeCodes(cs) {
+  const m = new Map();
+  for (const c of cs) { const { seen = 1, ...rest } = c, k = JSON.stringify(rest); m.set(k, { ...rest, seen: (m.get(k)?.seen || 0) + seen }); }
+  // Complete codes first (one direct lookup), then the ones read most often
+  const full = c => (!GAME.isComplete || GAME.isComplete(c)) ? 1 : 0;
+  return [...m.values()].sort((a, b) => full(b) - full(a) || b.seen - a.seen);
+}
 async function readSnaps(makers, { bail = false } = {}) {
-  const w = await getWorker();
+  const [w1, w2] = await getWorkers();
   if (GAME.loadNames && !dict) await ensureDict();
   const per = (GAME.regions.name ? NAME_TRIES.length : 0) + (GAME.regions.code ? CODE_TRIES.length : 0);
   let done = 0; const step = () => progress(Math.min(1, ++done / (per * makers.length)));
@@ -1615,17 +1702,26 @@ async function readSnaps(makers, { bail = false } = {}) {
   try {
     for (const make of makers) {
       const snap = make();
-      const nr = GAME.regions.name ? await readName(w, snap, step, bail) : { texts: [], ranked: [] };
+      const flag = {};
+      const [nr, cs] = await Promise.all([
+        GAME.regions.name ? readName(w1, snap, step, bail).then(nr => {
+          flag.nameClear = nameIsClear(nr.ranked);
+          if (bail && !nr.texts.length) flag.stop = true; // nothing there: stop reading the code too
+          return nr;
+        }) : { texts: [], ranked: [] },
+        GAME.regions.code ? readCode(w2, snap, step, flag) : []
+      ]);
       if (bail && GAME.regions.name && !nr.texts.length) continue;
-      const cs = GAME.regions.code ? await readCode(w, snap, step) : [];
       // A code read the same way twice counts as solid
       const solid = cs.some(c => c.seen >= 2 && (!GAME.isComplete || GAME.isComplete(c)));
       const q = (nr.ranked[0]?.score || 0) + (solid ? 0.35 : cs.length ? 0.1 : 0);
-      if (!best || q > best.q) best = { nr, cs: [...cs, ...(best?.cs || [])], q, make };
+      if (!best || q > best.q) best = { nr, cs: [...cs, ...(best?.cs || [])], q, make, snap };
       else best.cs.push(...cs);
-      if (q >= 1.2 || (!GAME.regions.name && solid)) break; // clear name and a code: good enough
+      // clear name (with or without a code): good enough, don't try the other framing
+      if (q >= 1.2 || nameIsClear(nr.ranked) || (!GAME.regions.name && solid)) break;
     }
   } finally { progress(null); }
+  if (best) best.cs = mergeCodes(best.cs);
   return best;
 }
 
@@ -1681,6 +1777,7 @@ async function identify(read, { auto = false, final = true } = {}) {
   if (r.status === 'ok' && !(auto && !final && r.weak)) {
     $('q').value = r.via;
     finish(r.res);
+    startArtMatch(r.res, read.snap);
     if (r.alts.length) showSuggestions(r.alts, r.weak ? 'Andre aflæsninger' : 'Andre mulige kort');
     return 'ok';
   }
@@ -1768,7 +1865,7 @@ function flash() { const f = $('flash'); f.classList.add('on'); requestAnimation
 
 function liveTick() {
   clearTimeout(live.timer);
-  live.timer = setTimeout(liveTick, 250);
+  live.timer = setTimeout(liveTick, 180);
   if (!stream || live.busy || document.hidden || !video.videoWidth) return;
   const motion = motionNow();
   if (live.waitChange) {
@@ -1782,16 +1879,16 @@ function liveTick() {
   if (rect) {
     live.still = 0;
     live.steady = same && motion < 9 ? live.steady + 1 : 0;
-    drawOverlay(rect, live.steady >= 2 ? '#3ddc84' : '#ffcf5a');
+    drawOverlay(rect, live.steady >= 1 ? '#3ddc84' : '#ffcf5a');
     pill(live.steady ? 'Kort fundet – hold det stille' : 'Kort fundet');
-    if (live.steady >= 3) liveCapture(rect);
+    if (live.steady >= 2) liveCapture(rect);
   } else {
     drawOverlay(null);
     live.steady = 0;
     // No outline found, but the picture is still: the card may be lined up in the guide anyway
     live.still = motion < 5 ? live.still + 1 : 0;
     pill('Hold kortet i rammen');
-    if (live.still >= 8) liveCapture(null);
+    if (live.still >= 10) liveCapture(null);
   }
 }
 
@@ -1813,7 +1910,10 @@ async function liveCapture(rect, manual = false) {
     flash(); navigator.vibrate?.(40);
     const p = curPrice();
     let txt = '✓ ' + current.name + (p != null ? ' · ' + kr(p, GAME.currency) : '');
-    if ($('autoAdd').checked) { addCurrent(); txt += ' · lagt i regnearket'; }
+    if ($('autoAdd').checked) {
+      if (artJob) { pill('Finder udgaven ud fra billedet…'); await Promise.race([artJob, sleep(2500)]); }
+      addCurrent(); txt = '✓ ' + current.name + (curPrice() != null ? ' · ' + kr(curPrice(), GAME.currency) : '') + ' · lagt i regnearket';
+    }
     pill(txt, true);
     drawOverlay(rect, '#3ddc84');
   } else if (outcome === 'unsure' && !manual && live.fails < 1) {
@@ -1841,6 +1941,78 @@ function showSuggestions(list, label) {
   $('sugWrap').hidden = false;
 }
 
+/* ================= Picture matching =================
+   Name and code say which card it is; the picture says which printing. A small "fingerprint" of the art
+   box (brightness steps on a 16×16 grid, plus its colour balance) is compared with the same box on each
+   printing's picture. When one printing is clearly closest, it is chosen. Runs after the card is shown,
+   so it never makes the scan itself slower. */
+const ART = {   // the art box on each game's card, in % of the card
+  mtg: { l: 8, t: 11.5, w: 84, h: 43 }, pokemon: { l: 8, t: 10, w: 84, h: 38 }, ygo: { l: 12, t: 18, w: 76, h: 52 },
+  onepiece: { l: 6, t: 8, w: 88, h: 62 }, lorcana: { l: 4, t: 4, w: 92, h: 46 }, fab: { l: 6, t: 9, w: 88, h: 46 }
+};
+const artBox = () => GAME.art || ART[GAME.id] || { l: 8, t: 10, w: 84, h: 45 };
+const AH = 16;
+// Fingerprint of the art box of a card at rect (in source pixels). Throws if the picture can't be read.
+function artPrint(src, rect) {
+  const b = artBox(), mid = document.createElement('canvas'), c = document.createElement('canvas');
+  mid.width = 68; mid.height = 64; c.width = AH + 1; c.height = AH;
+  const m = mid.getContext('2d'); m.imageSmoothingQuality = 'high';
+  m.drawImage(src, rect.x + b.l / 100 * rect.w, rect.y + b.t / 100 * rect.h, b.w / 100 * rect.w, b.h / 100 * rect.h, 0, 0, 68, 64);
+  const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(mid, 0, 0, AH + 1, AH);
+  const d = ctx.getImageData(0, 0, AH + 1, AH).data, g = [];
+  let R = 0, G = 0, B = 0;
+  for (let i = 0; i < d.length; i += 4) { g.push(d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11); R += d[i]; G += d[i + 1]; B += d[i + 2]; }
+  const bits = [];
+  for (let y = 0; y < AH; y++) for (let x = 0; x < AH; x++) bits.push(g[y * (AH + 1) + x] > g[y * (AH + 1) + x + 1] ? 1 : 0);
+  const sum = R + G + B || 1;
+  return { bits, chroma: [R / sum, G / sum, B / sum] };
+}
+function artDist(a, b) {
+  let h = 0; for (let i = 0; i < a.bits.length; i++) h += a.bits[i] !== b.bits[i];
+  const c = Math.abs(a.chroma[0] - b.chroma[0]) + Math.abs(a.chroma[1] - b.chroma[1]) + Math.abs(a.chroma[2] - b.chroma[2]);
+  return h / a.bits.length + c * 1.5;
+}
+// Fingerprints of printings' pictures, kept per address. The smallest picture size is enough.
+const refPrints = new Map();
+function refPrint(url) {
+  const u = url.replace('/normal/', '/small/'); // Scryfall has a small size
+  if (!refPrints.has(u)) refPrints.set(u, new Promise(res => {
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    im.onload = () => { try { res(artPrint(im, { x: 0, y: 0, w: im.naturalWidth, h: im.naturalHeight })); } catch { res(null); } };
+    im.onerror = () => res(null);
+    im.src = u;
+  }));
+  return refPrints.get(u);
+}
+// → { pick, score } when one printing is clearly closest, else null
+async function matchArt(snap, prints) {
+  const cands = (prints || []).filter(p => p.image).slice(0, 24);
+  if (!snap || cands.length < 2) return null;
+  let mine; try { mine = artPrint(snap.src, snap.card); } catch { return null; }
+  const scored = (await pool(cands, 6, async p => { const ref = await refPrint(p.image); return ref ? [p, artDist(mine, ref)] : null; }))
+    .filter(Boolean).sort((a, b) => a[1] - b[1]);
+  if (!scored.length) return null;
+  const [best, d1] = scored[0], d2 = scored[1] ? scored[1][1] : 1;
+  return d1 < 0.34 && d2 - d1 > 0.05 ? { pick: best, score: Math.max(0, 1 - d1) } : null;
+}
+// In the scanner: after a card is shown without a code, pick the printing from the picture
+let artJob = null, userPicked = false;
+function startArtMatch(res, snap) {
+  userPicked = false;
+  if (res.fromCode || !snap) { artJob = null; return; }
+  const name = res.pick.name;
+  artJob = (async () => {
+    const ps = res.more ? await res.more.catch(() => res.prints) : res.prints;
+    const m = await matchArt(snap, ps);
+    if (!m || userPicked || current?.name !== name) return null;
+    prints = ps;
+    if (m.pick.id !== current.id) showResult(m.pick); else setPrintOptions(current);
+    $('rFound').textContent = `Udgave valgt ud fra billedet: ${pCode(m.pick)}`;
+    return m;
+  })().catch(() => null);
+}
+
 /* ================= Lookup + result ================= */
 async function runLookup(fn, label) {
   setStatus(`Slår "${label}" op…`);
@@ -1855,12 +2027,26 @@ async function runLookup(fn, label) {
 function finish(res) {
   prints = res.prints; curKey = res.key;
   showResult(res.pick);
+  if (res.more) {
+    const id = res.pick.id;
+    res.more.then(ps => {
+      if (!ps?.length || current?.id !== id) return;
+      prints = ps; current = ps.find(p => p.id === id) || current;
+      setPrintOptions(current);
+      if (!res.fromCode && prints.length > 1) $('rFound').textContent = 'Tjek at udgaven i dropdownen passer med dit kort';
+      setStatus(`Fundet: ${current.name}` + (prints.length > 1 ? ` (${prints.length} udgaver)` : ''));
+    }).catch(() => {});
+  }
   $('rFound').textContent = GAME.noPrice ? 'Ingen prisdata – skriv prisen ind nedenfor'
     : res.fromCode ? `Udgave genkendt fra koden: ${pCode(res.pick)}`
     : prints.length > 1 ? 'Tjek at udgaven i dropdownen passer med dit kort' : '';
   setStatus(`Fundet: ${res.pick.name}` + (prints.length > 1 ? ` (${prints.length} udgaver)` : ''));
 }
 
+function setPrintOptions(p) {
+  $('rPrint').innerHTML = prints.map(x => `<option value="${esc(x.id)}" ${x.id === p.id ? 'selected' : ''}>${esc(printLabel(x))}</option>`).join('');
+  $('rPrintWrap').hidden = prints.length < 2;
+}
 function printLabel(x) {
   const v = x.normal ?? x.foil;
   const pr = GAME.noPrice ? '' : v == null ? ' · ingen pris' : ` · ${kr(v, GAME.currency)}${x.normal == null ? ' foil' : ''}`;
@@ -1873,8 +2059,7 @@ function showResult(p) {
   $('rName').textContent = p.name;
   if (p.image) { $('rImg').src = p.image; $('rImg').alt = p.name; $('rImg').hidden = false; $('rNoImg').hidden = true; }
   else { $('rImg').hidden = true; $('rNoImg').hidden = false; $('rNoImg').textContent = p.name; }
-  $('rPrint').innerHTML = prints.map(x => `<option value="${esc(x.id)}" ${x.id === p.id ? 'selected' : ''}>${esc(printLabel(x))}</option>`).join('');
-  $('rPrintWrap').hidden = prints.length < 2;
+  setPrintOptions(p);
   $('rFoilWrap').hidden = !GAME.hasFoil;
   if (!GAME.hasFoil) $('rFoil').checked = false;
   else if (!GAME.noPrice) {
@@ -1895,7 +2080,7 @@ function updatePrice() {
   $('rPrice').innerHTML = v == null ? 'Ingen pris <small>for denne udgave</small>' : kr(v, GAME.currency) + ` <small>${GAME.priceWord || 'trend'}${GAME.currency !== SHOW ? ' · ' + money(v, GAME.currency) : ''}</small>`;
   $('rManualWrap').hidden = v != null;
 }
-$('rPrint').onchange = e => showResult(prints.find(p => p.id === e.target.value));
+$('rPrint').onchange = e => { userPicked = true; showResult(prints.find(p => p.id === e.target.value)); };
 $('rFoil').onchange = updatePrice;
 
 $('searchForm').onsubmit = async e => {
@@ -1926,7 +2111,7 @@ function addRow({ pick, prints: ps, key, foil = false, qty = 1, note = '', manua
     id: pick.id, name: pick.name, code: pCode(pick),
     set: pick.set, setCode: pick.setCode, number: pick.number, rarity: pick.rarity, foil, qty,
     price: auto ?? manual, priceCur: auto != null ? GAME.currency : SHOW, cur: GAME.currency, manualPrice: auto == null && manual != null,
-    key, note,
+    key, note, image: pick.image || '', pn: pick.normal ?? null, pf: pick.foil ?? null,
     url: pick.url, sf: pick.sf || '', added: today()
   });
   save(); render();
@@ -1945,7 +2130,7 @@ const codeOf = r => r.code || [r.setCode, r.number].filter(Boolean).join(' ');
 
 function render() {
   const tb = $('rows');
-  if (!rows.length) tb.innerHTML = '<tr><td colspan="8" class="empty">Ingen kort endnu. Scan eller søg et kort for at komme i gang.</td></tr>';
+  if (!rows.length) tb.innerHTML = '<tr><td colspan="9" class="empty">Ingen kort endnu. Scan eller søg et kort for at komme i gang.</td></tr>';
   else tb.innerHTML = rows.map((r, i) => {
     const pk = rowShow(r);
     const priceCell = r.price == null || r.manualPrice
@@ -1953,8 +2138,9 @@ function render() {
       : `<span title="${esc(money(r.price, r.priceCur))}">${kr(r.price, r.priceCur)}</span>`;
     return `
     <tr>
-      <td class="name">${esc(r.name)}${r.foil ? '<span class="chip">foil</span>' : ''}</td>
+      <td class="name"><button type="button" class="cardlink" data-open="${i}" title="Vis kortet">${esc(r.name)}</button></td>
       <td class="code">${esc(codeOf(r))}</td>
+      <td class="foilc">${GAME.hasFoil ? `<input type="checkbox" data-foil="${i}" ${r.foil ? 'checked' : ''} aria-label="Foil: ${esc(r.name)}">` : '–'}</td>
       <td class="num"><input type="number" min="1" value="${r.qty}" data-i="${i}" aria-label="Antal ${esc(r.name)}"></td>
       <td class="num">${priceCell}</td>
       <td class="num">${r.price == null ? '–' : kr(r.price * r.qty, r.priceCur)}</td>
@@ -1972,8 +2158,94 @@ $('rows').addEventListener('change', e => {
   if (d.i != null) { rows[d.i].qty = Math.max(1, parseInt(e.target.value) || 1); save(); render(); }
   if (d.note != null) { rows[d.note].note = e.target.value.trim(); save(); }
   if (d.price != null) { const v = num(e.target.value); rows[d.price].price = v; rows[d.price].priceCur = SHOW; rows[d.price].manualPrice = v != null; save(); render(); }
+  if (d.foil != null) {
+    const r = rows[d.foil]; r.foil = e.target.checked;
+    // Switch to the foil (or normal) price when it is known
+    const v = r.foil ? r.pf : r.pn;
+    if (!r.manualPrice && v !== undefined) { r.price = v; r.priceCur = r.cur || GAME.currency; }
+    else if (!r.manualPrice) setStatus('Tryk "Opdater priser" for at hente prisen for ' + (r.foil ? 'foil' : 'normal') + '.');
+    mergeDuplicates(r); save(); render();
+  }
 });
-$('rows').addEventListener('click', e => { const i = e.target.dataset.del; if (i != null) { rows.splice(i, 1); save(); render(); } });
+$('rows').addEventListener('click', e => {
+  const i = e.target.dataset.del; if (i != null) { rows.splice(i, 1); save(); render(); }
+  const o = e.target.closest('[data-open]'); if (o) openCard(+o.dataset.open);
+});
+
+/* ================= Card window (click a card in the list) =================
+   Shows the card with picture and set, and lets you change the printing, foil, count, price and comment,
+   just like after a scan. The printings are fetched when the window opens. */
+const cd = { i: -1, prints: [], pick: null };
+// The saved row as a printing, so the window can show it before the printings arrive
+const rowAsPrint = r => ({ id: r.id, name: r.name, set: r.set || '', setCode: r.setCode || '', number: r.number || '', rarity: r.rarity || '',
+  image: r.image || '', normal: r.pn ?? (r.foil ? null : r.price), foil: r.pf ?? (r.foil ? r.price : null), url: r.url, sf: r.sf || '' });
+
+function cdShowPick() {
+  const p = cd.pick, foil = $('cdFoil').checked;
+  $('cdName').textContent = p.name;
+  $('cdMeta').textContent = [p.set, pCode(p), p.rarity].filter(Boolean).join(' · ');
+  if (p.image) { $('cdImg').src = p.image; $('cdImg').alt = p.name; $('cdImg').hidden = false; $('cdNoImg').hidden = true; }
+  else { $('cdImg').hidden = true; $('cdNoImg').hidden = false; $('cdNoImg').textContent = p.name; }
+  const v = foil ? p.foil : p.normal, r = rows[cd.i];
+  const manual = r.manualPrice && p.id === r.id && foil === r.foil;
+  $('cdPrice').hidden = GAME.noPrice || v == null;
+  $('cdPrice').innerHTML = v == null ? '' : kr(v, GAME.currency) + ` <small>${GAME.priceWord || 'trend'}</small>`;
+  $('cdManualWrap').hidden = v != null && !manual;
+  $('cdManualCur').textContent = CUR_LABEL[SHOW];
+  $('cdCm').href = p.url; $('cdSf').hidden = !p.sf; if (p.sf) $('cdSf').href = p.sf;
+}
+function cdOptions() {
+  $('cdPrint').innerHTML = cd.prints.map(x => `<option value="${esc(x.id)}" ${x.id === cd.pick.id ? 'selected' : ''}>${esc(printLabel(x))}</option>`).join('');
+  $('cdPrintWrap').hidden = cd.prints.length < 2 && !$('cdLoading').textContent;
+}
+async function openCard(i) {
+  const r = rows[i]; if (!r) return;
+  cd.i = i; cd.pick = rowAsPrint(r); cd.prints = [cd.pick];
+  $('cdFoil').checked = !!r.foil; $('cdFoilWrap').hidden = !GAME.hasFoil;
+  $('cdQty').value = r.qty; $('cdNote').value = r.note || '';
+  const pk = rowShow(r); $('cdManual').value = r.manualPrice && pk != null ? round2(pk) : '';
+  $('cdLoading').textContent = 'Henter udgaver…';
+  cdShowPick(); cdOptions();
+  $('cardDlg').showModal();
+  try {
+    let ps = [];
+    if (GAME.loadPrints && r.key != null) ps = await GAME.loadPrints(r.key);
+    else if (GAME.byName) { const res = await GAME.byName(r.name); ps = await (res.more || Promise.resolve(res.prints)); }
+    if (cd.i !== i || !$('cardDlg').open) return;
+    if (ps.length) {
+      cd.prints = ps;
+      const same = ps.find(x => x.id === r.id);
+      if (same) cd.pick = same; else cd.prints = [cd.pick, ...ps];
+    }
+    $('cdLoading').textContent = '';
+  } catch { $('cdLoading').textContent = 'Kunne ikke hente de andre udgaver.'; }
+  cdOptions(); cdShowPick();
+}
+$('cdPrint').onchange = e => { cd.pick = cd.prints.find(p => p.id === e.target.value) || cd.pick; cdShowPick(); };
+$('cdFoil').onchange = cdShowPick;
+$('cardDlg').addEventListener('close', () => {
+  const v = $('cardDlg').returnValue, r = rows[cd.i];
+  if (!r) return;
+  if (v === 'del') { rows.splice(cd.i, 1); save(); render(); setStatus('Fjernet fra regnearket: ' + r.name); return; }
+  if (v !== 'save') return;
+  const p = cd.pick, foil = GAME.hasFoil && $('cdFoil').checked;
+  const auto = foil ? p.foil : p.normal, manual = num($('cdManual').value);
+  Object.assign(r, { id: p.id, name: p.name, code: pCode(p), set: p.set, setCode: p.setCode, number: p.number, rarity: p.rarity,
+    image: p.image || r.image || '', url: p.url, sf: p.sf || '', foil, pn: p.normal ?? null, pf: p.foil ?? null,
+    qty: Math.max(1, parseInt($('cdQty').value) || 1), note: $('cdNote').value.trim() });
+  if (manual != null && (auto == null || !$('cdManualWrap').hidden && r.manualPrice)) Object.assign(r, { price: manual, priceCur: SHOW, manualPrice: true });
+  else Object.assign(r, { price: auto ?? null, priceCur: GAME.currency, manualPrice: false });
+  mergeDuplicates(r);
+  save(); render(); setStatus('Opdateret: ' + r.name + (foil ? ' (foil)' : ''));
+});
+// Two rows for the same printing and finish become one
+function mergeDuplicates(r) {
+  const j = rows.findIndex(x => x !== r && x.id === r.id && !!x.foil === !!r.foil);
+  if (j < 0) return;
+  r.qty += rows[j].qty;
+  if (rows[j].note && rows[j].note !== r.note) r.note = [r.note, rows[j].note].filter(Boolean).join('; ');
+  rows.splice(j, 1);
+}
 
 let clearArmed = false;
 $('clearBtn').onclick = () => {
@@ -1983,6 +2255,7 @@ $('clearBtn').onclick = () => {
 
 $('refreshBtn').onclick = async () => {
   if (!GAME.loadPrints) return setStatus('Der er ingen automatiske priser for dette spil. Ret priserne direkte i tabellen.');
+  apiCache.clear();
   const groups = new Map();
   rows.forEach(r => { if (r.key != null) { const k = String(r.key); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); } });
   if (!groups.size) return setStatus('Ingen kort at opdatere.');
@@ -1995,6 +2268,7 @@ $('refreshBtn').onclick = async () => {
       list.forEach(r => {
         const p = ps.find(x => x.id === r.id);
         if (p && !r.manualPrice) { r.price = r.foil ? p.foil : p.normal; r.priceCur = r.cur; }
+        if (p) { r.pn = p.normal ?? null; r.pf = p.foil ?? null; if (p.image) r.image = p.image; }
         if (p?.url) r.url = p.url; // picks up the current links
         if (p?.sf) r.sf = p.sf;
       });
@@ -2150,7 +2424,7 @@ async function gsCall(payload) {
 
 const gsHeader = () => [...headerFor(), 'data'];
 const keepOf = r => ({ id: r.id, key: r.key, set: r.set, setCode: r.setCode, number: r.number, rarity: r.rarity,
-  url: r.url, sf: r.sf, added: r.added, price: r.price, priceCur: r.priceCur, cur: r.cur, manualPrice: !!r.manualPrice, code: r.code });
+  url: r.url, sf: r.sf, image: r.image, pn: r.pn, pf: r.pf, added: r.added, price: r.price, priceCur: r.priceCur, cur: r.cur, manualPrice: !!r.manualPrice, code: r.code });
 function gsRows(list = rows) {
   return list.map((r, i) => {
     const n = i + 2;
@@ -2662,6 +2936,7 @@ function applyResolve(it, r) {
     Object.assign(it, { state: 'ok', pick: p, prints: r.res.prints, key: r.res.key, fromCode: !!r.res.fromCode, sug: r.alts || [],
       sure: !r.weak && (r.res.fromCode || !(r.alts || []).length) });
     it.foil = GAME.hasFoil && p.normal == null && p.foil != null;
+    r.res.more?.then(ps => { if (ps?.length && it.pick?.id === p.id) { it.prints = ps; it.pick = ps.find(x => x.id === p.id) || it.pick; bRenderItem(it); } }).catch(() => {});
   } else if (r.status === 'unsure') Object.assign(it, { state: 'unsure', sug: r.sug || [], pick: null });
   else Object.assign(it, { state: 'none', sug: [], pick: null, codeText: r.code?.text || '' });
 }
@@ -2686,6 +2961,11 @@ async function bProcess(it) {
     // Only weak guesses (often a photo without a card): call it not found, but keep the guesses to pick from
     const weak = r.status === 'unsure' && r.sug?.length && r.sug[0].score != null && r.sug[0].score < (outline ? 0.7 : 0.75);
     applyResolve(it, weak ? { status: 'none' } : r);
+    if (!weak && r.status === 'ok' && !r.res.fromCode && read?.snap) {
+      const ps = r.res.more ? await r.res.more.catch(() => r.res.prints) : r.res.prints;
+      const m = await matchArt(read.snap, ps);
+      if (m && it.state === 'ok') { it.prints = ps; it.pick = m.pick; it.byArt = true; it.sure = true; it.foil = GAME.hasFoil && m.pick.normal == null && m.pick.foil != null; }
+    }
     if (weak) it.sug = r.sug.slice(0, 3);
   } finally { URL.revokeObjectURL(img.src); }
 }
@@ -2745,7 +3025,7 @@ function bItemHTML(it) {
   let body = '';
   if (it.state === 'ok') {
     const p = it.pick, v = it.foil ? p.foil : p.normal;
-    body = `<div class="qline"><strong>${esc(p.name)}</strong> <span class="found">${esc(pCode(p))}</span>
+    body = `<div class="qline"><strong>${esc(p.name)}</strong> <span class="found">${esc(pCode(p))}${it.byArt ? ' · valgt ud fra billedet' : it.fromCode ? ' · fra koden' : ''}</span>
         <span class="qprice">${GAME.noPrice ? '' : v == null ? 'ingen pris' : esc(kr(v, GAME.currency))}</span></div>`;
     if (!it.added) body += `
       <div class="row qctl">
@@ -2928,6 +3208,8 @@ const fromHash = location.hash.slice(1);
 let startId = ids[0];
 try { startId = localStorage.getItem('tcg-game') || startId; } catch {}
 setGame(GAMES[fromHash] ? fromHash : startId);
+// Start the OCR engines in the background, so the first scan doesn't wait for them
+setTimeout(() => (window.requestIdleCallback || (f => f()))(() => getWorkers(true).catch(() => {})), 1200);
 if (MODE === 'app' && VIEW === 'single' && liveOK) camPermState().then(st => {
   let on = '0', asked = '0';
   try { on = localStorage.getItem('tcg-cam-on') || '0'; asked = localStorage.getItem('tcg-cam-asked') || '0'; } catch {}
