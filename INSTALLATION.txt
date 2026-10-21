@@ -1,0 +1,40 @@
+TCG Scanner – sådan installerer du appen på din Android-telefon
+================================================================
+
+Alt er samlet i én app: kamera-scanner og billedstak, alle seks spil, regneark, Google Sheet og Excel.
+
+PÅ COMPUTEREN kan du bare dobbeltklikke på index.html (brug Chrome eller Edge) – eller bruge den enkelte fil tcg-scanner.html.
+
+PÅ TELEFONEN skal appen ligge på en https-adresse, før Chrome kan installere den og give den adgang til
+kameraet. Det er gratis med GitHub Pages:
+
+1) LÆG APPEN ONLINE (én gang, ca. 5 minutter)
+   a. Opret en gratis konto på github.com, og opret et nyt repository, fx "tcg-scanner" (Public).
+   b. Vælg "Add file" → "Upload files", og træk ALLE filerne fra denne mappe ind:
+      index.html, manifest.webmanifest, sw.js og de fire .png-ikoner. Tryk "Commit changes".
+   c. Gå til Settings → Pages. Vælg "Deploy from a branch", branch "main" og mappen "/ (root)". Tryk Save.
+   d. Efter et par minutter ligger appen på https://DIT-BRUGERNAVN.github.io/tcg-scanner/
+
+2) INSTALLER PÅ TELEFONEN
+   a. Åbn adressen i Chrome på telefonen.
+   b. Tryk "Installer app" øverst i appen – eller Chrome-menuen (⋮) → "Installer app".
+   c. Appen ligger nu på startskærmen og i app-oversigten og åbner i fuld skærm.
+      Første gang spørger den om lov til at bruge kameraet.
+
+3) VIL DU HAVE EN RIGTIG APK-FIL? (valgfrit)
+   a. Gå til pwabuilder.com, indsæt adressen fra trin 1d, og tryk Start.
+   b. Vælg "Package for stores" → Android → "Generate Package", og hent zip-filen.
+   c. Den indeholder en .apk, du kan installere direkte (tillad installation fra ukendte kilder),
+      og en .aab, hvis du vil lægge appen i Google Play.
+
+OPDATERING
+   Upload de nye filer til samme repository. Appen henter selv den nye version, næste gang den åbnes med internet.
+
+GODT AT VIDE
+   - Excel online: Når appen ligger online, kan den logge ind med Microsoft og gemme i en Excel-fil i OneDrive.
+     Opsætningen står i appen under "Excel online (OneDrive)" → "Sådan sætter du det op".
+   - Listerne gemmes på telefonen. Afinstallerer du appen, forsvinder de – brug Google Sheet-synkroniseringen
+     eller "Hent alle spil (.xlsx)" som backup.
+   - Direkte forbindelse til en Excel-fil virker kun i Chrome/Edge på en computer. På telefonen kan du importere
+     fra en Excel-fil og hente en opdateret kopi.
+   - Appen kræver internet til priser og første indlæsning af tekstgenkendelsen. Selve appen åbner også offline.

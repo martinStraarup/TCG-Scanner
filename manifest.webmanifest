@@ -1,0 +1,36 @@
+{
+  "name": "TCG Prisscanner",
+  "short_name": "TCG Scanner",
+  "description": "Scan samlekort (Magic, Pokémon, Yu-Gi-Oh!, One Piece, Lorcana og Flesh and Blood), se prisen i kroner og hold styr på samlingen.",
+  "lang": "da",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#14171c",
+  "theme_color": "#14171c",
+  "categories": [
+    "utilities",
+    "shopping"
+  ],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
