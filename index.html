@@ -76,7 +76,7 @@ h2 { font: 600 1.15rem/1.2 var(--f-display); margin: 0; }
 .guide .hint.n { color: #ffcf8a; }
 .guide .hint.c { color: #8ad1ff; }
 .cam-off { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center; color: #cfd5de; padding: 24px; }
-.cam-off button { color: var(--ink); }
+.cam-off button, .cam-off .btn:not(.primary) { color: var(--ink); }
 .cam-note { font-size: .8rem; color: #9aa3b2; max-width: 30ch; margin: 0 auto; }
 .status { font-family: var(--f-mono); font-size: .82rem; color: var(--muted); min-height: 1.3em; }
 .status.err { color: var(--bad); }
@@ -95,6 +95,30 @@ input[type=text], input[type=number], select { border: 1px solid var(--line); ba
 #q { flex: 1 1 200px; }
 .zoom { gap: 8px; flex: 1 1 160px; color: var(--muted); font-size: .9rem; }
 .zoom input { flex: 1; min-width: 0; accent-color: var(--accent); }
+/* Photo tools: zoom, turn, straighten */
+.ptools { display: grid; gap: 8px; }
+.ptools .row { gap: 6px; }
+.ptools .tl { color: var(--muted); font-size: .85rem; min-width: 4.2em; }
+.ptools input[type=range] { flex: 1 1 120px; min-width: 0; accent-color: var(--accent); }
+.ptools button { padding: 6px 11px; }
+.ptools button.ic { min-width: 38px; padding: 6px 0; text-align: center; font-weight: 600; }
+.ptools .val { font: .8rem var(--f-mono); color: var(--muted); min-width: 4.5em; text-align: center; }
+.cam.over { outline: 3px dashed var(--accent); outline-offset: -8px; }
+.cam canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
+dialog#adDlg { border: 1px solid var(--line); border-radius: 14px; padding: 0; width: min(520px, calc(100vw - 24px)); background: var(--surface); color: var(--ink); }
+dialog#adDlg::backdrop { background: rgba(10, 12, 16, .55); }
+.ad-opt { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; }
+.ad-opt h3 { font-size: 1rem; margin: 0; }
+.ad-opt details p { margin-top: 6px; font-size: .9rem; }
+#adText { width: 100%; font: .85rem var(--f-mono); border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 8px; resize: vertical; }
+dialog#edDlg { border: 1px solid var(--line); border-radius: 14px; padding: 0; width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); background: var(--surface); color: var(--ink); }
+dialog#edDlg::backdrop { background: rgba(10, 12, 16, .55); }
+.edlg { padding: 16px; display: grid; gap: 12px; }
+.edlg h2 { font-size: 1.15rem; }
+.ed-head { display: grid; gap: 2px; min-width: 0; }
+.ed-stage { aspect-ratio: 4 / 5; max-height: 56dvh; margin: 0 auto; }
+.qthumb button { border: none; padding: 0; background: none; border-radius: 4px; cursor: zoom-in; display: block; }
+.qedit { padding: 6px 12px; }
 
 /* Suggestions */
 .sugwrap { display: grid; gap: 8px; }
@@ -144,6 +168,8 @@ code { font-family: var(--f-mono); font-size: .9em; }
 .tabs .n { font: .72rem var(--f-mono); color: var(--muted); }
 .src { margin: 0; }
 .dictwarn { font-size: .8rem; color: var(--bad); }
+.native-only { display: none; }
+html.native .native-only { display: inline; }
 .hdr { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .seg { display: inline-flex; margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: var(--surface); gap: 3px; }
 .seg button { border: none; background: none; padding: 7px 16px; border-radius: 7px; color: var(--muted); font-weight: 500; }
@@ -185,7 +211,9 @@ td.foilc { text-align: center; }
 .qi.s-done { opacity: .7; }
 .qthumb img { width: 64px; border-radius: 4px; display: block; }
 .qph { width: 64px; aspect-ratio: 63 / 88; background: var(--bg); border-radius: 4px; }
-.qbody { display: grid; gap: 6px; min-width: 0; }
+.qbody { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; }
+.qbody > * { min-width: 0; }
+.qctl select { width: 100%; text-overflow: ellipsis; }
 .qhead { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
 .qfile { font: .75rem var(--f-mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .state { font-size: .7rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
@@ -264,7 +292,7 @@ td.foilc { text-align: center; }
   <section class="panel">
     <div class="cam">
       <video id="video" playsinline muted></video>
-      <canvas id="photo" hidden></canvas>
+      <canvas id="photo" hidden tabindex="0" aria-label="Billedet. Træk for at flytte. Knib, rul eller brug plus og minus for at zoome."></canvas>
       <canvas id="overlay" aria-hidden="true"></canvas>
       <div class="flash" id="flash"></div>
       <div class="guide" id="guide" hidden>
@@ -273,24 +301,27 @@ td.foilc { text-align: center; }
       </div>
       <div class="livepill" id="livePill" role="status" hidden></div>
       <div class="cam-off" id="camOff">
-        <div id="camOffText">Start kameraet og hold kortet foran det. Det bliver scannet automatisk.</div>
+        <div id="camOffText">Start kameraet og hold kortet foran det. Det bliver scannet automatisk. Du kan også bruge et billede, du allerede har.</div>
         <div class="row" style="justify-content:center">
           <button class="primary" id="startCam">Start kamera</button>
           <label class="btn" for="photoInput" id="photoBtn">Tag billede</label>
+          <label class="btn" for="uploadInput" id="uploadBtn">Upload billede</label>
         </div>
-        <div class="cam-note" id="camNote" hidden>Levende kamera kræver https eller localhost. "Tag billede" virker altid.</div>
+        <div class="cam-note" id="camNote" hidden>Levende kamera kræver https eller localhost. "Tag billede" og "Upload billede" virker altid.</div>
+        <div class="cam-note" id="dropNote">Du kan også trække et billede herind eller sætte det ind med Ctrl+V.</div>
       </div>
     </div>
     <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
+    <input type="file" id="uploadInput" accept="image/*" hidden>
     <div class="row">
       <button class="primary" id="scanBtn" disabled>Scan kort</button>
       <label class="btn" for="photoInput" id="newPhoto" hidden>Nyt billede</label>
-      <button id="autoFit" hidden>Find kortet</button>
+      <label class="btn" for="uploadInput" id="newUpload" hidden>Upload billede</label>
       <button id="stopCam" hidden>Stop kamera</button>
       <button id="torchBtn" hidden aria-pressed="false">Lys</button>
       <label class="row" style="gap:6px" id="autoAddWrap" hidden><input type="checkbox" id="autoAdd"> Læg automatisk i regnearket</label>
-      <label class="row zoom" id="zoomWrap" hidden>Zoom <input type="range" id="zoom" min="0.2" max="4" step="0.01" value="1"></label>
     </div>
+    <div class="ptools" id="photoTools" hidden></div>
     <div class="found" id="photoHint" hidden></div>
     <div id="statusHome"><div id="statusBox" class="bslot">
       <div class="progress" id="progress" hidden><div></div></div>
@@ -361,6 +392,7 @@ td.foilc { text-align: center; }
       <button class="primary" id="xlsxBtn">Hent Excel (.xlsx)</button>
       <button id="xlsxAllBtn">Hent alle spil (.xlsx)</button>
       <button id="csvBtn">Hent CSV</button>
+      <button id="adBtn" hidden>Til Archidekt</button>
       <button id="refreshBtn">Opdater priser</button>
       <button id="clearBtn">Ryd</button>
     </div>
@@ -410,7 +442,7 @@ td.foilc { text-align: center; }
       <h2>Excel online (OneDrive)</h2>
       <span class="found" id="msState"></span>
     </div>
-    <p class="found" id="msOffline" style="margin:0" hidden>Login med Microsoft virker, når appen ligger online (https), fx på GitHub Pages. Indtil da kan du bruge "Excel-fil" herunder med en fil i din OneDrive-mappe på computeren.</p>
+    <p class="found" id="msOffline" style="margin:0" hidden><span class="native-only">I Android-appen kan du bruge Google Sheet; login med Microsoft virker i web-versionen. </span>Login med Microsoft virker, når appen ligger online (https), fx på GitHub Pages. Indtil da kan du bruge "Excel-fil" herunder med en fil i din OneDrive-mappe på computeren.</p>
     <div id="msSetup" class="gsgrid">
       <div><label class="label" for="msClient">Klient-id</label><input type="text" id="msClient" placeholder="fx 0a1b2c3d-…" autocomplete="off"></div>
       <div><label class="label" for="msPath">Fil i OneDrive</label><input type="text" id="msPath" autocomplete="off"></div>
@@ -507,6 +539,51 @@ td.foilc { text-align: center; }
       <span class="cd-sp"></span>
       <button value="cancel">Annuller</button>
       <button value="save" class="primary" id="cdSave">Gem</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="edDlg" aria-labelledby="edTitle">
+  <form method="dialog" class="edlg">
+    <div class="ed-head"><h2 id="edTitle">Tilpas billede</h2><span class="qfile" id="edFile"></span></div>
+    <div class="cam ed-stage">
+      <canvas id="edCan" tabindex="0" aria-label="Billedet. Træk for at flytte. Knib, rul eller brug plus og minus for at zoome."></canvas>
+      <div class="guide" id="edGuide">
+        <div class="box name" id="edBoxName"></div><div class="hint n" id="edHintName">Navn</div>
+        <div class="box code" id="edBoxCode"></div><div class="hint c" id="edHintCode">Kode</div>
+      </div>
+    </div>
+    <div class="ptools" id="edTools"></div>
+    <p class="found" id="edHint" style="margin:0"></p>
+    <div class="row cd-actions">
+      <span class="cd-sp"></span>
+      <button value="cancel">Annuller</button>
+      <button value="scan" class="primary" id="edScan">Scan igen</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="adDlg" aria-labelledby="adTitle">
+  <form method="dialog" class="dlg">
+    <h2 id="adTitle">Til Archidekt</h2>
+    <p id="adCount"></p>
+    <div class="ad-opt">
+      <h3>Til din samling</h3>
+      <p>Hent en fil, og importer den på Archidekt under <b>Collection → Import</b>. Filen har kortenes Scryfall-ID, så Archidekt rammer præcis den udgave og foil, du har scannet.</p>
+      <button type="button" class="primary" id="adCsv">Hent fil til Archidekt (.csv)</button>
+      <details><summary>Hvis Archidekt spørger, hvad kolonnerne er</summary>
+        <p>Quantity → <b>Quantity</b> · Scryfall ID → <b>Scryfall ID</b> · Finish → <b>Foil/variant</b>. De andre kolonner (navn, sætkode og nummer) kan bruges eller springes over.</p></details>
+    </div>
+    <div class="ad-opt">
+      <h3>Til et deck</h3>
+      <p>Kopiér listen, åbn dit deck på Archidekt, tryk <b>Import</b>, og sæt listen ind.</p>
+      <textarea id="adText" rows="6" readonly aria-label="Kortliste til Archidekt"></textarea>
+      <button type="button" id="adCopy">Kopiér listen</button>
+    </div>
+    <div class="row cd-actions">
+      <a href="https://archidekt.com/" target="_blank" rel="noopener">Åbn Archidekt ↗</a>
+      <span class="cd-sp"></span>
+      <button value="cancel">Luk</button>
     </div>
   </form>
 </dialog>
@@ -1263,6 +1340,10 @@ function rankNames(texts) {
 
 /* ================= Page setup ================= */
 const video = $('video'), pcan = $('photo'), statusEl = $('status');
+/* Inside the Android app (Capacitor), the app's own native part "TextScanner" offers Android's text
+   recognition (Google ML Kit) and saving files. In a browser these are absent and nothing changes. */
+const NATIVE = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.TextScanner || null : null;
+if (NATIVE) document.documentElement.classList.add('native');
 const MODE = 'app'; // 'single' scanner, 'batch' stack, 'app' both with a switch
 let VIEW = MODE === 'batch' ? 'batch' : 'single';
 const setStatus = (msg, err = false) => { statusEl.textContent = msg; statusEl.classList.toggle('err', err); };
@@ -1300,7 +1381,144 @@ let current = null, prints = [], curKey = null;
 
 /* ================= Camera + photo ================= */
 let stream = null;
-const photo = { img: null, scale: 1, tx: 0, ty: 0 };
+/* ================= Photo framer =================
+   Shows a picture behind the card frame. Drag to move it, pinch / scroll / slider to zoom, turn it
+   a quarter at a time, and straighten a slightly crooked photo. Used by the scanner and by the
+   "Tilpas" window in the stack. */
+const dimW = s => s.naturalWidth || s.videoWidth || s.width, dimH = s => s.naturalHeight || s.videoHeight || s.height;
+// Rotate a picture by any angle onto a canvas big enough to hold it (black corners)
+function rotateAny(img, deg) {
+  if (!(deg % 360)) return img;
+  const W = dimW(img), H = dimH(img), a = deg * Math.PI / 180, cs = Math.abs(Math.cos(a)), sn = Math.abs(Math.sin(a));
+  const c = document.createElement('canvas'); c.width = Math.round(W * cs + H * sn); c.height = Math.round(W * sn + H * cs);
+  const x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, c.width, c.height);
+  x.translate(c.width / 2, c.height / 2); x.rotate(a); x.imageSmoothingQuality = 'high'; x.drawImage(img, -W / 2, -H / 2);
+  return c;
+}
+// Phone photos can be huge; a copy no longer than max px reads just as well and turns much faster
+function downsized(img, max = 2600) {
+  const W = dimW(img), H = dimH(img), k = Math.min(1, max / Math.max(W, H));
+  const c = document.createElement('canvas'); c.width = Math.round(W * k); c.height = Math.round(H * k);
+  const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+const TOOLS = `
+  <div class="row"><span class="tl">Zoom</span>
+    <button type="button" class="ic" data-f="out" aria-label="Zoom ud">−</button>
+    <input type="range" data-f="zoom" min="0.2" max="4" step="0.01" value="1" aria-label="Zoom">
+    <button type="button" class="ic" data-f="in" aria-label="Zoom ind">+</button></div>
+  <div class="row"><span class="tl">Ret op</span>
+    <input type="range" data-f="fine" min="-15" max="15" step="0.5" value="0" aria-label="Ret billedet op (grader)">
+    <button type="button" class="val" data-f="fine0" title="Sæt til 0°">0°</button></div>
+  <div class="row"><button type="button" data-f="rot">↻ Drej 90°</button><button type="button" data-f="fit">Find kortet</button><button type="button" data-f="reset">Hele billedet</button></div>`;
+class Framer {
+  constructor(canvas, guide, tools) {
+    Object.assign(this, { canvas, guide, img: null, scale: 1, tx: 0, ty: 0, quarter: 0, fine: 0, placements: [], base: 1, rot: null });
+    tools.innerHTML = TOOLS;
+    const f = k => tools.querySelector(`[data-f="${k}"]`);
+    this.ui = { zoom: f('zoom'), fine: f('fine'), fine0: f('fine0') };
+    const zoomBy = k => { this.placements = []; this.zoomAt(k); };
+    f('out').onclick = () => zoomBy(1 / 1.15);
+    f('in').onclick = () => zoomBy(1.15);
+    f('rot').onclick = () => this.turn();
+    f('fit').onclick = () => this.onFit?.(this.fit());
+    f('reset').onclick = () => { this.placements = []; this.whole(); };
+    this.ui.zoom.oninput = e => { this.placements = []; this.zoomAt(this.base * parseFloat(e.target.value) / this.scale, true); };
+    this.ui.fine.oninput = e => this.setFine(parseFloat(e.target.value));
+    f('fine0').onclick = () => this.setFine(0);
+    // Drag to move, two fingers to zoom, scroll wheel to zoom, arrow keys and +/- on the keyboard
+    const pts = new Map(); let pinch = null;
+    canvas.addEventListener('pointerdown', e => { this.placements = []; canvas.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); });
+    canvas.addEventListener('pointermove', e => {
+      if (!pts.has(e.pointerId)) return;
+      const prev = pts.get(e.pointerId), cur = { x: e.clientX, y: e.clientY };
+      pts.set(e.pointerId, cur);
+      if (pts.size === 1) { this.tx += cur.x - prev.x; this.ty += cur.y - prev.y; this.draw(); }
+      else if (pts.size === 2) {
+        const [a, b] = [...pts.values()], dist = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinch) this.zoomAt(dist / pinch); pinch = dist;
+      }
+    });
+    const end = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; };
+    canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
+    canvas.addEventListener('wheel', e => { e.preventDefault(); this.placements = []; this.zoomAt(e.deltaY < 0 ? 1.05 : 1 / 1.05); }, { passive: false });
+    canvas.addEventListener('keydown', e => {
+      const step = e.shiftKey ? 40 : 10, mv = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+      if (mv) { this.tx += mv[0]; this.ty += mv[1]; }
+      else if (e.key === '+' || e.key === '=') this.zoomAt(1.1);
+      else if (e.key === '-') this.zoomAt(1 / 1.1);
+      else return;
+      e.preventDefault(); this.placements = []; this.draw();
+    });
+  }
+  get angle() { return this.quarter * 90 + this.fine; }
+  // The picture as it is turned now (what is read)
+  get src() {
+    if (!this.img) return null;
+    const k = this.angle;
+    if (!k) return this.img;
+    if (!this.rot || this.rot.k !== k || this.rot.img !== this.img) this.rot = { k, img: this.img, c: rotateAny(this.img, k) };
+    return this.rot.c;
+  }
+  set(img, quarter = 0) { Object.assign(this, { img, quarter: ((quarter % 4) + 4) % 4, fine: 0, rot: null, placements: [] }); this.syncAngle(); }
+  syncAngle() { this.ui.fine.value = this.fine; this.ui.fine0.textContent = (this.fine > 0 ? '+' : '') + this.fine + '°'; }
+  syncZoom() { this.base = this.scale; this.ui.zoom.value = 1; }
+  zoomAt(k, fromSlider) {
+    // zoom around the middle of the frame, so what is in the frame stays there
+    const b = this.canvas.getBoundingClientRect(), g = this.guide.getBoundingClientRect();
+    const fx = g.left + g.width / 2 - (b.left + b.width / 2), fy = g.top + g.height / 2 - (b.top + b.height / 2);
+    const ns = Math.min(this.base * 8, Math.max(this.base * 0.1, this.scale * k)), r = ns / this.scale;
+    this.tx = fx + (this.tx - fx) * r; this.ty = fy + (this.ty - fy) * r; this.scale = ns;
+    if (!fromSlider) this.ui.zoom.value = (this.scale / this.base).toFixed(2);
+    this.draw();
+  }
+  setFine(v) { this.fine = Math.max(-15, Math.min(15, v)); this.placements = []; this.syncAngle(); this.draw(); }
+  turn() { this.quarter = (this.quarter + 1) % 4; this.fine = 0; this.syncAngle(); this.onFit?.(this.fit()); }
+  // Card in the picture → in the frame; the other candidate is "the card fills the picture"
+  fit() {
+    const src = this.src, W = dimW(src), H = dimH(src), gr = this.guide.getBoundingClientRect(), box = this.canvas.getBoundingClientRect();
+    const rect = detectCard(src);
+    const fill = { scale: Math.min(gr.height * 1.04 / H, gr.width * 1.04 / W), tx: gr.left + gr.width / 2 - (box.left + box.width / 2), ty: gr.top + gr.height / 2 - (box.top + box.height / 2) };
+    this.placements = [fill];
+    if (rect) {
+      const scale = (gr.height / rect.h + gr.width / rect.w) / 2, cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+      this.placements.unshift({ scale,
+        tx: (gr.left + gr.width / 2) - (box.left + box.width / 2) - (cx - W / 2) * scale,
+        ty: (gr.top + gr.height / 2) - (box.top + box.height / 2) - (cy - H / 2) * scale });
+    }
+    Object.assign(this, this.placements[0]);
+    this.syncZoom(); this.draw();
+    return !!rect;
+  }
+  // Show the whole picture
+  whole() {
+    const src = this.src, b = this.canvas.getBoundingClientRect();
+    Object.assign(this, { scale: Math.min(b.width / dimW(src), b.height / dimH(src)), tx: 0, ty: 0 });
+    this.syncZoom(); this.draw();
+  }
+  draw() {
+    if (!this.img) return;
+    const c = this.canvas, box = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    if (!box.width) return;
+    c.width = Math.round(box.width * dpr); c.height = Math.round(box.height * dpr);
+    const ctx = c.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, box.width, box.height);
+    const W = dimW(this.img) * this.scale, H = dimH(this.img) * this.scale;
+    ctx.translate(box.width / 2 + this.tx, box.height / 2 + this.ty);
+    ctx.rotate(this.angle * Math.PI / 180);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(this.img, -W / 2, -H / 2, W, H);
+  }
+  // The frame, in the turned picture's pixels
+  snap() {
+    const src = this.src, box = this.canvas.getBoundingClientRect(), g = this.guide.getBoundingClientRect();
+    const left = box.left + box.width / 2 + this.tx - dimW(src) * this.scale / 2, top = box.top + box.height / 2 + this.ty - dimH(src) * this.scale / 2;
+    return { src, card: { x: (g.left - left) / this.scale, y: (g.top - top) / this.scale, w: g.width / this.scale, h: g.height / this.scale } };
+  }
+  state() { return { quarter: this.quarter, fine: this.fine, scale: this.scale, tx: this.tx, ty: this.ty }; }
+}
+const photo = new Framer(pcan, $('guide'), $('photoTools'));
 const liveOK = window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;
 if (!liveOK) {
   $('startCam').hidden = true; $('camNote').hidden = false;
@@ -1315,7 +1533,7 @@ function showMode(mode) {
   $('photo').hidden = mode !== 'photo';
   $('stopCam').hidden = $('autoAddWrap').hidden = mode !== 'live';
   if (mode !== 'live') $('torchBtn').hidden = true;
-  $('newPhoto').hidden = $('autoFit').hidden = $('zoomWrap').hidden = $('photoHint').hidden = mode !== 'photo';
+  $('newPhoto').hidden = $('newUpload').hidden = $('photoTools').hidden = $('photoHint').hidden = mode !== 'photo';
   $('scanBtn').disabled = mode === 'off';
   $('scanBtn').textContent = mode === 'live' ? 'Scan nu' : 'Scan kort';
   if (mode !== 'live') { drawOverlay(null); pill(''); }
@@ -1333,7 +1551,7 @@ async function startLive() {
   try { await video.play(); } catch {}
   const track = stream.getVideoTracks()[0];
   try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch {}
-  photo.img = null; placements = [];
+  photo.img = null; photo.placements = [];
   try { localStorage.setItem('tcg-cam-on', '1'); } catch {}
   showMode('live');
   $('torchBtn').hidden = !(track.getCapabilities?.() || {}).torch;
@@ -1396,22 +1614,34 @@ $('torchBtn').onclick = async () => {
 try { $('autoAdd').checked = localStorage.getItem('tcg-autoadd') === '1'; } catch {}
 $('autoAdd').onchange = () => { try { localStorage.setItem('tcg-autoadd', $('autoAdd').checked ? '1' : '0'); } catch {} };
 
-$('photoInput').onchange = e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const img = new Image();
-  img.onload = () => {
-    stopLive();
-    photo.img = img; showMode('photo');
-    const found = autoFit();
-    setStatus(found ? 'Kortet er fundet og lagt i rammen. Juster, hvis det ikke passer, og tryk "Scan kort".'
-                    : 'Billede indlæst. Juster det, så kortet passer i rammen, og tryk "Scan kort".');
-    URL.revokeObjectURL(img.src);
-  };
-  img.onerror = () => setStatus('Kunne ikke åbne billedet. Prøv et andet.', true);
-  img.src = URL.createObjectURL(file);
-  e.target.value = '';
-};
+const isImage = f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|bmp|hei[cf]|avif)$/i.test(f.name || '');
+async function loadPhoto(file) {
+  let img;
+  try { img = await loadImg(file); } catch (e) { return setStatus(e.message || 'Kunne ikke åbne billedet. Prøv et andet.', true); }
+  const copy = downsized(img); URL.revokeObjectURL(img.src);
+  stopLive(); hideSuggestions();
+  photo.set(copy); showMode('photo');
+  const found = photo.fit();
+  setStatus(found ? 'Kortet er fundet og lagt i rammen. Juster, hvis det ikke passer, og tryk "Scan kort".'
+                  : 'Billede indlæst. Flyt, zoom eller drej det, så kortet passer i rammen, og tryk "Scan kort".');
+}
+photo.onFit = found => setStatus(found ? 'Kortet er lagt i rammen.' : 'Kunne ikke finde kortets kanter. Juster billedet selv.');
+for (const id of ['photoInput', 'uploadInput']) $(id).onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) loadPhoto(f); };
+{
+  const cam = document.querySelector('#singleUI .cam');
+  const hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
+  ['dragenter', 'dragover'].forEach(t => cam.addEventListener(t, e => { if (hasFiles(e)) { e.preventDefault(); cam.classList.add('over'); } }));
+  ['dragleave', 'drop'].forEach(t => cam.addEventListener(t, () => cam.classList.remove('over')));
+  cam.addEventListener('drop', e => { e.preventDefault(); const f = [...e.dataTransfer.files].find(isImage); if (f) loadPhoto(f); else setStatus('Det var ikke et billede.', true); });
+  // Ctrl+V with a picture: into the scanner, or into the stack
+  document.addEventListener('paste', e => {
+    if (e.target.closest?.('input, textarea, [contenteditable]') || $('edDlg').open) return;
+    const files = [...(e.clipboardData?.files || [])].filter(isImage);
+    if (!files.length) return;
+    e.preventDefault();
+    if (VIEW === 'batch') bAddFiles(files); else loadPhoto(files[0]);
+  });
+}
 /* Find the card in the photo: look for the rectangle with the card's proportions whose four sides
    run along strong edges, preferring the biggest. Works on a small copy, so it is instant. */
 function detectCard(img) {
@@ -1466,66 +1696,7 @@ function detectCard(img) {
   return { x: best.l / S, y: best.t / S, w: (best.r - best.l) / S, h: (best.b - best.t) / S };
 }
 
-// Place the photo so the detected card lines up with the guide; falls back to "card fills the photo"
-// Two candidate placements: the detected card, and "the card fills the photo"
-let placements = [];
-function autoFit() {
-  const img = photo.img, gr = $('guide').getBoundingClientRect(), box = pcan.getBoundingClientRect();
-  const rect = detectCard(img);
-  const fill = { scale: Math.min(gr.height * 1.04 / img.naturalHeight, gr.width * 1.04 / img.naturalWidth), tx: 0, ty: 0 };
-  placements = [fill];
-  if (rect) {
-    const scale = (gr.height / rect.h + gr.width / rect.w) / 2;
-    const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
-    placements.unshift({ scale,
-      tx: (gr.left + gr.width / 2) - (box.left + box.width / 2) - (cx - img.naturalWidth / 2) * scale,
-      ty: (gr.top + gr.height / 2) - (box.top + box.height / 2) - (cy - img.naturalHeight / 2) * scale });
-  }
-  Object.assign(photo, placements[0]);
-  syncZoom(); drawPhoto();
-  return !!rect;
-}
-$('autoFit').onclick = () => setStatus(autoFit() ? 'Kortet er lagt i rammen.' : 'Kunne ikke finde kortets kanter. Juster billedet selv.', false);
-
-function drawPhoto() {
-  if (!photo.img) return;
-  const box = pcan.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-  pcan.width = Math.round(box.width * dpr); pcan.height = Math.round(box.height * dpr);
-  const ctx = pcan.getContext('2d');
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, box.width, box.height);
-  const { img, scale, tx, ty } = photo;
-  const w = img.naturalWidth * scale, h = img.naturalHeight * scale;
-  ctx.drawImage(img, box.width / 2 + tx - w / 2, box.height / 2 + ty - h / 2, w, h);
-}
-window.addEventListener('resize', drawPhoto);
-let baseScale = 1;
-function syncZoom() { baseScale = photo.scale; $('zoom').value = 1; }
-$('zoom').oninput = e => { placements = []; photo.scale = baseScale * parseFloat(e.target.value); drawPhoto(); };
-const pts = new Map(); let pinch = null;
-pcan.addEventListener('pointerdown', e => { placements = []; pcan.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); });
-pcan.addEventListener('pointermove', e => {
-  if (!pts.has(e.pointerId)) return;
-  const prev = pts.get(e.pointerId), cur = { x: e.clientX, y: e.clientY };
-  pts.set(e.pointerId, cur);
-  if (pts.size === 1) { photo.tx += cur.x - prev.x; photo.ty += cur.y - prev.y; }
-  else if (pts.size === 2) {
-    const [a, b] = [...pts.values()];
-    const dist = Math.hypot(a.x - b.x, a.y - b.y);
-    if (pinch) photo.scale *= dist / pinch;
-    pinch = dist; $('zoom').value = (photo.scale / baseScale).toFixed(2);
-  }
-  drawPhoto();
-});
-const endPt = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; };
-pcan.addEventListener('pointerup', endPt);
-pcan.addEventListener('pointercancel', endPt);
-pcan.addEventListener('wheel', e => {
-  e.preventDefault();
-  photo.scale *= e.deltaY < 0 ? 1.05 : 1 / 1.05;
-  $('zoom').value = (photo.scale / baseScale).toFixed(2);
-  drawPhoto();
-}, { passive: false });
+window.addEventListener('resize', () => { photo.draw(); if ($('edDlg').open) ed.draw(); });
 
 /* ================= Image capture for OCR =================
    A region is read several times: the box as drawn, a taller box, and boxes nudged up and down,
@@ -1546,12 +1717,7 @@ function guideIn(left, top, scale) {
 /* Freeze the picture so every attempt reads the same frame.
    card = the card's outline in source pixels: the detected card, or the guide frame. */
 function snapshot(cardRect) {
-  if (photo.img && !stream) {
-    const box = pcan.getBoundingClientRect(), img = photo.img;
-    const left = box.left + box.width / 2 + photo.tx - img.naturalWidth * photo.scale / 2;
-    const top = box.top + box.height / 2 + photo.ty - img.naturalHeight * photo.scale / 2;
-    return { src: img, card: guideIn(left, top, photo.scale) };
-  }
+  if (photo.img && !stream) return photo.snap();
   const vw = video.videoWidth, vh = video.videoHeight;
   const c = document.createElement('canvas'); c.width = vw; c.height = vh;
   c.getContext('2d').drawImage(video, 0, 0);
@@ -1615,7 +1781,16 @@ function regionCanvas(snap, r, v, mode, targetPx) {
 
 // Two OCR engines, so the name and the code are read at the same time
 let workersP = null;
+// Android's text recognition behaves like an OCR engine to the rest of the app
+const mlkitEngine = NATIVE && {
+  setParameters: async () => {},
+  recognize: async canvas => {
+    const r = await NATIVE.recognize({ image: canvas.toDataURL('image/jpeg', 0.92).split(',')[1] });
+    return { data: { text: r.text || '' } };
+  }
+};
 function getWorkers(quiet) {
+  if (mlkitEngine) return Promise.resolve([mlkitEngine, mlkitEngine]);
   if (!workersP) {
     if (!quiet) setStatus('Indlæser tekstgenkendelse (første gang tager et øjeblik)…');
     const opts = location.protocol === 'file:' ? { cacheMethod: 'none' } : {};
@@ -1802,10 +1977,10 @@ $('scanBtn').onclick = async () => {
   try {
     setStatus('Læser kortet…');
     // If the user hasn't placed the photo by hand, an unclear read is retried with the other placement
-    const pls = placements.length > 1 ? placements : [null];
-    const makers = pls.map(pl => { const m = () => { if (pl) { Object.assign(photo, pl); syncZoom(); drawPhoto(); } return snapshot(); }; m.pl = pl; return m; });
+    const pls = photo.placements.length > 1 ? photo.placements : [null];
+    const makers = pls.map(pl => { const m = () => { if (pl) { Object.assign(photo, pl); photo.syncZoom(); photo.draw(); } return snapshot(); }; m.pl = pl; return m; });
     const read = await readSnaps(makers);
-    if (read?.make.pl) { Object.assign(photo, read.make.pl); syncZoom(); drawPhoto(); }
+    if (read?.make.pl) { Object.assign(photo, read.make.pl); photo.syncZoom(); photo.draw(); }
     await identify(read);
   } catch (e) {
     progress(null);
@@ -2290,6 +2465,14 @@ const krCells = r => [round2(rowShow(r))];
 const rateText = () => 'Kurs' + (RATES.date ? ' ' + RATES.date : '') + ': 1 EUR = ' + RATES.EUR.toLocaleString('da-DK', { maximumFractionDigits: 4 }) + ' kr.' + (RATES.USD ? ', 1 USD = ' + RATES.USD.toLocaleString('da-DK', { maximumFractionDigits: 4 }) + ' kr.' : '') + (RATES.live ? ' (ECB)' : ' (fastkurs)');
 const base = r => [r.name, codeOf(r), r.set, r.setCode, r.number, r.rarity, r.foil ? 'Ja' : 'Nej', r.qty];
 const fileBase = () => GAME.id + '-samling-' + today();
+const toB64 = bytes => { let s = ''; const a = new Uint8Array(bytes); for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode(...a.subarray(i, i + 0x8000)); return btoa(s); };
+async function saveFile(name, bytes, mime) {
+  if (NATIVE) { try { await NATIVE.saveFile({ name, mime, data: toB64(bytes) }); } catch (e) { setStatus('Kunne ikke gemme filen: ' + e.message, true); } return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([bytes], { type: mime })); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const saveBook = (wb, name) => NATIVE ? saveFile(name, XLSX.write(wb, { type: 'array', bookType: 'xlsx' }), XLSX_MIME) : XLSX.writeFile(wb, name);
 
 // withData adds a hidden last column with the details the app needs to read the sheet back
 function sheetFor(g, list, withData = false) {
@@ -2321,7 +2504,7 @@ $('xlsxBtn').onclick = () => {
   if (!rows.length) return setStatus('Regnearket er tomt.', true);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, sheetFor(GAME, rows, true), sheetName(GAME.tab));
-  XLSX.writeFile(wb, fileBase() + '.xlsx');
+  saveBook(wb, fileBase() + '.xlsx');
 };
 $('xlsxAllBtn').onclick = () => {
   const wb = XLSX.utils.book_new();
@@ -2332,7 +2515,7 @@ $('xlsxAllBtn').onclick = () => {
     XLSX.utils.book_append_sheet(wb, sheetFor(g, list, true), sheetName(g.tab)); n++;
   }
   if (!n) return setStatus('Der er ingen kort i nogen af spillene endnu.', true);
-  XLSX.writeFile(wb, 'tcg-samling-' + today() + '.xlsx');
+  saveBook(wb, 'tcg-samling-' + today() + '.xlsx');
   setStatus(`Hentede ${n} spil i én Excel-fil, et ark pr. spil.`);
 };
 
@@ -2342,9 +2525,38 @@ $('csvBtn').onclick = () => {
   const dk = v => v == null ? '' : v.toFixed(2).replace('.', ',');
   const lines = [headerFor(), ...rows.map(r => { const [p] = krCells(r); return [...base(r), dk(p), dk(p == null ? null : p * r.qty), r.note || '', r.url, r.added, dk(r.price ?? null), r.price == null ? '' : (r.priceCur || r.cur), r.sf || '']; })]
     .map(l => l.map(cell).join(';'));
-  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fileBase() + '.csv'; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  saveFile(fileBase() + '.csv', new TextEncoder().encode('\ufeff' + lines.join('\n')), 'text/csv');
+};
+
+/* ================= Archidekt (Magic only) =================
+   Archidekt has no public way to add cards from another app, so the app makes what its importers read:
+   a CSV file for the collection importer (with Scryfall IDs, so the exact printing and foil are kept)
+   and a text list for a deck's importer ("1x Lightning Bolt (m21) 152 *F*"). */
+const adRows = () => rows.filter(r => r.qty > 0);
+function adCsv(list) {
+  const cell = v => { const s = v == null ? '' : String(v); return /[,"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  return [['Quantity', 'Name', 'Finish', 'Edition Code', 'Collector Number', 'Scryfall ID'],
+    ...list.map(r => [r.qty, r.name, r.foil ? 'Foil' : 'Normal', (r.setCode || '').toLowerCase(), r.number || '', r.id])]
+    .map(l => l.map(cell).join(',')).join('\r\n');
+}
+const adText = list => list.map(r => `${r.qty}x ${r.name}` + (r.setCode ? ` (${r.setCode.toLowerCase()})` : '') + (r.number ? ` ${r.number}` : '') + (r.foil ? ' *F*' : '')).join('\n');
+$('adBtn').onclick = () => {
+  const list = adRows();
+  if (!list.length) return setStatus('Regnearket er tomt.', true);
+  const n = list.reduce((a, r) => a + r.qty, 0);
+  $('adCount').textContent = `${n} kort (${list.length} forskellige) fra din Magic-liste.`;
+  $('adText').value = adText(list);
+  $('adCopy').textContent = 'Kopiér listen';
+  const d = $('adDlg'); if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
+};
+$('adCsv').onclick = () => {
+  saveFile('archidekt-' + today() + '.csv', new TextEncoder().encode(adCsv(adRows())), 'text/csv');
+  setStatus('Filen til Archidekt er hentet. Importer den under Collection → Import på archidekt.com.');
+};
+$('adCopy').onclick = async () => {
+  const t = $('adText');
+  try { await navigator.clipboard.writeText(t.value); $('adCopy').textContent = 'Kopieret ✓'; }
+  catch { t.focus(); t.select(); $('adCopy').textContent = 'Markeret – tryk Kopiér'; }
 };
 
 /* ================= Google Sheets sync =================
@@ -2540,8 +2752,10 @@ function setGame(id, user) {
   placeBox($('boxName'), $('hintName'), GAME.regions.name);
   placeBox($('boxCode'), $('hintCode'), GAME.regions.code);
   $('photoHint').textContent = GAME.regions.name
-    ? 'Træk i billedet og zoom, så kortet passer i rammen. Navnet skal stå i den gule boks og koden i den blå.'
-    : 'Træk i billedet og zoom, så kortet passer i rammen. Koden skal stå i den blå boks.';
+    ? 'Træk i billedet, zoom og ret det op, så kortet passer i rammen. Navnet skal stå i den gule boks og koden i den blå.'
+    : 'Træk i billedet, zoom og ret det op, så kortet passer i rammen. Koden skal stå i den blå boks.';
+  $('edHint').textContent = $('photoHint').textContent;
+  $('adBtn').hidden = GAME.id !== 'mtg';
   STORE = 'tcg-rows-' + GAME.id;
   rows = loadRows(GAME);
   current = null; prints = []; curKey = null;
@@ -2551,7 +2765,10 @@ function setGame(id, user) {
   setStatus(`Klar til ${GAME.label}.`);
   document.title = ids.length > 1 ? `${GAME.label} · ${MODE === 'batch' ? 'TCG Stakscanner' : MODE === 'app' ? 'TCG Scanner' : 'TCG Prisscanner'}` : document.title;
   // A photo already loaded is re-fitted to this game's card shape (unless placed by hand)
-  if (photo.img && placements.length) requestAnimationFrame(autoFit);
+  if (photo.img && photo.placements.length) requestAnimationFrame(() => photo.fit());
+  placeBox($('edBoxName'), $('edHintName'), GAME.regions.name);
+  placeBox($('edBoxCode'), $('edHintCode'), GAME.regions.code);
+  $('edGuide').style.aspectRatio = String(GAME.ratio);
   render();
   if (VIEW === 'batch') { bRender(); setStatus(`Klar til ${GAME.label}. Vælg billeder for at starte.`); }
   ensureDict(); // fetch the name list in the background so the first scan doesn't wait
@@ -2734,7 +2951,7 @@ const ms = { clientId: '', path: 'TCG Scanner/tcg-samling.xlsx', access: '', exp
 try { Object.assign(ms, JSON.parse(localStorage.getItem('tcg-ms') || '{}')); } catch {}
 const msSave = () => { try { localStorage.setItem('tcg-ms', JSON.stringify({ clientId: ms.clientId, path: ms.path, access: ms.access, exp: ms.exp, refresh: ms.refresh, user: ms.user, auto: ms.auto, webUrl: ms.webUrl })); } catch {} };
 const msStatus = (m, err = false) => { $('msStatus').textContent = m; $('msStatus').classList.toggle('err', err); };
-const msOnline = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
+const msOnline = !NATIVE && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname));
 const msRedirect = () => location.origin + location.pathname.replace(/index\.html$/, '');
 const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
@@ -2940,10 +3157,24 @@ function applyResolve(it, r) {
   } else if (r.status === 'unsure') Object.assign(it, { state: 'unsure', sug: r.sug || [], pick: null });
   else Object.assign(it, { state: 'none', sug: [], pick: null, codeText: r.code?.text || '' });
 }
+// Small picture of just the framed card (after "Tilpas")
+function cardThumb(snap) {
+  const C = snap.card, c = document.createElement('canvas');
+  c.height = 176; c.width = Math.round(176 * C.w / C.h);
+  const x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, c.width, c.height);
+  x.drawImage(snap.src, C.x, C.y, C.w, C.h, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.8);
+}
 async function bProcess(it) {
+  // Adjusted by hand: read exactly the framed picture
+  if (it.manual) {
+    const snap = it.manual; it.manual = null;
+    it.thumb = cardThumb(snap); bRenderItem(it);
+    return bResolve(it, await readSnaps([() => snap]), true);
+  }
   const img = await loadImg(it.file);
   try {
-    it.thumb = thumbOf(img); bRenderItem(it);
+    it.thumb = thumbOf(img); it.deg = 0; bRenderItem(it);
     let mk = makersFor(img), outline = mk.outline;
     let read = await readSnaps(mk);
     // A sideways or upside-down photo: turn it and read again
@@ -2952,10 +3183,15 @@ async function bProcess(it) {
       for (const deg of turns) {
         mk = makersFor(rotated(img, deg)); outline ||= mk.outline;
         const r2 = await readSnaps(mk);
-        if (r2 && (!read || r2.q > read.q)) read = r2;
+        if (r2 && (!read || r2.q > read.q)) { read = r2; it.deg = deg; }
         if (read && read.q >= 0.8) break;
       }
     }
+    await bResolve(it, read, outline);
+  } finally { URL.revokeObjectURL(img.src); }
+}
+async function bResolve(it, read, outline) {
+  {
     let r = read ? await resolveCard(read.nr, read.cs) : { status: 'none' };
     // Only weak guesses (a photo without a card, or unreadable): call it not found rather than offer noise
     // Only weak guesses (often a photo without a card): call it not found, but keep the guesses to pick from
@@ -2967,9 +3203,10 @@ async function bProcess(it) {
       if (m && it.state === 'ok') { it.prints = ps; it.pick = m.pick; it.byArt = true; it.sure = true; it.foil = GAME.hasFoil && m.pick.normal == null && m.pick.foil != null; }
     }
     if (weak) it.sug = r.sug.slice(0, 3);
-  } finally { URL.revokeObjectURL(img.src); }
+  }
 }
-async function bRun() {
+// onlyAdjusted: read just the pictures adjusted by hand (the rest of a paused stack stays paused)
+async function bRun(onlyAdjusted = false) {
   if (bRunning) return;
   bRunning = true; bStop = false; bButtons();
   try {
@@ -2977,7 +3214,7 @@ async function bRun() {
     if (GAME.loadNames && !dict) { bStatus('Henter kortnavne (kun første gang)…'); await ensureDict(); }
     for (;;) {
       if (bStop) break;
-      const it = Q().find(x => x.state === 'wait');
+      const it = Q().find(x => x.state === 'wait' && x.manual) || (onlyAdjusted ? null : Q().find(x => x.state === 'wait'));
       if (!it) break;
       it.state = 'read'; bRenderItem(it); bSummary();
       const left = Q().filter(x => x.state === 'wait').length;
@@ -2989,7 +3226,8 @@ async function bRun() {
   } finally {
     bRunning = false; bButtons(); bSummary(); progress(null);
     const q = Q(), done = q.filter(x => x.state !== 'wait').length;
-    if (!bStop && q.length) bStatus(`Færdig: ${done} billeder gennemgået. Tjek de gule og røde, og læg resten i regnearket.`);
+    if (onlyAdjusted && q.some(x => x.state === 'wait')) bStatus('Det tilpassede billede er læst. Resten af stakken er stadig sat på pause.');
+    else if (!bStop && q.length) bStatus(`Færdig: ${done} billeder gennemgået. Tjek de gule og røde, og læg resten i regnearket.`);
     if (bStop) bStatus('Sat på pause.');
   }
 }
@@ -3021,7 +3259,11 @@ async function bChoose(it, q) {
 const STATE = { wait: ['Venter', ''], read: ['Læser…', ''], ok: ['Fundet', 'good'], unsure: ['Usikker', 'warn'], none: ['Ikke fundet', 'bad'], err: ['Fejl', 'bad'] };
 function bItemHTML(it) {
   const [label, tone] = it.added ? ['I regnearket', 'done'] : STATE[it.state];
-  const thumb = it.thumb ? `<img src="${it.thumb}" alt="">` : '<div class="qph"></div>';
+  const canEdit = !it.added && ['ok', 'unsure', 'none'].includes(it.state);
+  const thumb = !it.thumb ? '<div class="qph"></div>'
+    : canEdit ? `<button type="button" data-act="edit" title="Tilpas billedet" aria-label="Tilpas billedet ${esc(it.name)}"><img src="${it.thumb}" alt=""></button>`
+    : `<img src="${it.thumb}" alt="">`;
+  const editBtn = canEdit ? `<button type="button" class="qedit" data-act="edit">Tilpas billede</button>` : '';
   let body = '';
   if (it.state === 'ok') {
     const p = it.pick, v = it.foil ? p.foil : p.normal;
@@ -3033,13 +3275,14 @@ function bItemHTML(it) {
         ${GAME.hasFoil ? `<label class="row" style="gap:4px"><input type="checkbox" data-act="foil" ${it.foil ? 'checked' : ''}> Foil</label>` : ''}
         <label class="row" style="gap:4px">Antal <input type="number" min="1" value="${it.qty}" data-act="qty" style="width:64px"></label>
         <button data-act="add">Læg i regnearket</button>
+        ${editBtn}
       </div>`;
     if (!it.added && it.sug?.length) body += `<div class="suggest">${it.sug.slice(0, 4).map(s => `<button type="button" data-act="pick" data-name="${esc(s.name)}">${esc(s.name)}</button>`).join('')}</div>`;
   } else if (it.state === 'unsure' || it.state === 'none' || it.state === 'err') {
     const msg = it.state === 'err' ? it.err : it.state === 'none' ? 'Kunne ikke læse et kort' + (it.codeText ? ` (læste koden ${it.codeText})` : '') + (it.sug?.length ? '. Svage gæt:' : '. Søg selv, eller fjern billedet.') : 'Vælg det rigtige kort, eller søg:';
     body = `<div class="qline found">${esc(msg)}</div>`;
     if (it.sug?.length) body += `<div class="suggest">${it.sug.map((s, i) => `<button type="button" class="${i ? '' : 'top'}" data-act="pick" data-name="${esc(s.name)}">${esc(s.name)}${s.score != null ? ` <span class="pct">${Math.round(s.score * 100)}%</span>` : ''}</button>`).join('')}</div>`;
-    if (it.state !== 'err') body += `<form class="row qsearch" data-act="search"><input type="text" placeholder="${esc(GAME.placeholder)}" aria-label="Søg kort"><button>Find</button></form>`;
+    if (it.state !== 'err') body += `<form class="row qsearch" data-act="search"><input type="text" placeholder="${esc(GAME.placeholder)}" aria-label="Søg kort"><button>Find</button>${editBtn}</form>`;
   }
   return `<div class="qthumb">${thumb}</div>
     <div class="qbody"><div class="qhead"><span class="state ${tone}">${label}</span> <span class="qfile">${esc(it.name)}</span></div>${body}</div>
@@ -3140,6 +3383,7 @@ if (MODE === 'batch' || MODE === 'app') {
     if (act === 'del') { queues[GAME.id] = Q().filter(x => x !== it); bRender(); }
     if (act === 'add') { bAddItem(it); bRenderItem(it); bSummary(); bStatus('Lagt i regnearket: ' + it.pick.name); }
     if (act === 'pick') bChoose(it, el.dataset.name);
+    if (act === 'edit') edOpen(it);
   });
   $('queue').addEventListener('change', e => {
     const el = e.target.closest('[data-act]'); if (!el) return;
@@ -3155,6 +3399,41 @@ if (MODE === 'batch' || MODE === 'app') {
   });
   window.addEventListener('beforeunload', e => { if (Q().some(x => x.state === 'ok' && !x.added)) { e.preventDefault(); e.returnValue = ''; } });
 }
+
+/* ================= "Tilpas billede" in the stack =================
+   Opens the picture behind the card frame. Move, zoom, turn and straighten it, then "Scan igen"
+   reads exactly what is in the frame. */
+const ed = new Framer($('edCan'), $('edGuide'), $('edTools'));
+let edItem = null, edUrl = null;
+ed.onFit = found => { $('edHint').textContent = found ? 'Kortet er lagt i rammen.' : 'Kunne ikke finde kortets kanter. Juster billedet selv.'; };
+async function edOpen(it) {
+  let img;
+  try { img = await loadImg(it.file); } catch (e) { return bStatus(e.message); }
+  const copy = downsized(img); URL.revokeObjectURL(img.src);
+  edItem = it;
+  $('edFile').textContent = it.name;
+  $('edHint').textContent = $('photoHint').textContent;
+  ed.set(copy, (it.edit?.quarter ?? (it.deg || 0) / 90));
+  const d = $('edDlg');
+  if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
+  requestAnimationFrame(() => {
+    if (it.edit) { Object.assign(ed, it.edit); ed.syncAngle(); ed.syncZoom(); ed.draw(); }
+    else ed.fit();
+    $('edCan').focus({ preventScroll: true });
+  });
+}
+$('edScan').onclick = e => {
+  e.preventDefault();
+  const it = edItem;
+  if (!it || !ed.img) return $('edDlg').close();
+  it.manual = ed.snap(); it.edit = ed.state();
+  Object.assign(it, { state: 'wait', pick: null, sug: [], err: '', byArt: false, codeText: '' });
+  $('edDlg').close('scan');
+  bRenderItem(it); bSummary();
+  if (bRunning) bStatus('Billedet bliver læst igen, så snart det nuværende er færdigt.');
+  else bRun(true);
+};
+$('edDlg').addEventListener('close', () => { edItem = null; ed.img = null; ed.rot = null; });
 
 /* ================= Installable app ================= */
 let installEvt = null;
@@ -3219,7 +3498,7 @@ if (MODE === 'app' && VIEW === 'single' && liveOK) camPermState().then(st => {
 </script>
 <script>
 // Offline support and installation need https (or localhost)
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname)))
+if ('serviceWorker' in navigator && !window.Capacitor?.isNativePlatform?.() && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname)))
   navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
